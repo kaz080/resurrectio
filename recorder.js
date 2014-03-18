@@ -371,7 +371,7 @@ TestRecorder.ElementInfo.prototype.getCleanCSSSelector = function(element) {
 
     var tmp_selector = '';
     var accuracy = document.querySelectorAll(selector).length;
-    if(element.id) {
+    if(element.id && element.id.replace(/\D/g, '').length < 2) {
         selector = "#" + element.id;
         accuracy = document.querySelectorAll(selector).length
         if(accuracy==1) return selector;
