@@ -140,7 +140,7 @@ CasperRenderer.prototype.render = function(with_xy) {
     var item = this.items[i];
     if (item.type == etypes.Comment)
       this.space();
-    
+
     if(i==0) {
         if(item.type!=etypes.OpenUrl) {
             this.text("ERROR: the recorded sequence does not start with a url openning.");
@@ -173,8 +173,10 @@ CasperRenderer.prototype.render = function(with_xy) {
     }
 
     // we do not want click due to user checking actions
-    if(i>0 && item.type==etypes.Click && 
-            ((this.items[i-1].type>=etypes.CheckPageTitle && this.items[i-1].type<=etypes.CheckImageSrc) || this.items[i-1].type==etypes.ScreenShot)) {
+    if (i>0 && item.type==etypes.Click &&
+        ((this.items[i-1].type>=etypes.CheckPageTitle &&
+          this.items[i-1].type<=etypes.CheckImageSrc)
+         || this.items[i-1].type==etypes.ScreenShot)) {
         continue;
     }
 
@@ -221,7 +223,7 @@ CasperRenderer.prototype.startUrl = function(item) {
   this.stmt("}", 1);
   this.stmt("});", 0);
   this.stmt("casper.test.begin('Resurrectio test', function(test) {", 0);
-  this.stmt("casper.start(" + url + ");");        
+  this.stmt("casper.start(" + url + ");");
 }
 CasperRenderer.prototype.openUrl = function(item) {
   var url = this.pyrepr(this.rewriteUrl(item.url));
@@ -262,7 +264,7 @@ CasperRenderer.prototype.getControl = function(item) {
 
   return selector;
 }
-  
+
 CasperRenderer.prototype.getControlXPath = function(item) {
   var type = item.info.type;
   var way;
