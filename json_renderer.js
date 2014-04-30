@@ -39,6 +39,15 @@ function JsonRenderer(document) {
   this.last_events = new Array();
   this.screen_id = 1;
   this.unamed_element_id = 1;
+  this.json = {};
+  this.json.rendered_at = null;
+  this.json.viewport = null;
+  this.json.events = [];
+}
+
+JsonRenderer.prototype.push_event = function(event) {
+  event.time = new Date();
+  this.json.events.push(event);
 }
 
 JsonRenderer.prototype.text = function(txt) {
@@ -47,9 +56,7 @@ JsonRenderer.prototype.text = function(txt) {
 }
 
 JsonRenderer.prototype.stmt = function(text, indent) {
-  if (typeof text == "object")
-    text = JSON.stringify(text) + ",";
-  if (indent==undefined) indent = 1;
+  if (indent==undefined) indent = 2;
   var output = (new Array(2*indent)).join(" ") + text;
   this.document.writeln(output);
 }
@@ -110,7 +117,6 @@ JsonRenderer.prototype.render = function(with_xy) {
   var etypes = EventTypes;
   this.document.open();
   this.document.write("<" + "pre" + ">");
-  this.writeHeader();
   var last_down = null;
   var forget_click = false;
 
@@ -121,7 +127,7 @@ JsonRenderer.prototype.render = function(with_xy) {
 
     if (i==0) {
       if (item.type!=etypes.OpenUrl) {
-        this.stmt({type: "error", message: "the recorded sequence does not start with a url openning."});
+        this.push_event({error: "the recorded sequence does not start with a url openning."});
       } else {
         this.startUrl(item);
         continue;
@@ -143,7 +149,7 @@ JsonRenderer.prototype.render = function(with_xy) {
       } else {
         console.log("MouseDrag");
         item.before = last_down;
-        this[this.dispatch[etypes.MouseDrag]](item);
+        this[this.dispatch[etypes.MouseDrag]](item, 2, comma);
         last_down = null;
         forget_click = true;
         continue;
@@ -167,22 +173,16 @@ JsonRenderer.prototype.render = function(with_xy) {
     console.log(d[item.type]);
     if (this.dispatch[item.type]) {
       console.log("Dispatch");
-      this[this.dispatch[item.type]](item);
+      this[this.dispatch[item.type]](item, 2, comma);
     }
   }
-  this.writeFooter();
+
+  this.document.writeln(JSON.stringify(this.json, 0, 2));
+
   this.document.write("<" + "/" + "pre" + ">");
   this.document.close();
 }
 
-JsonRenderer.prototype.writeHeader = function() {
-  this.text("[");
-  var text = "Rendered at " + new Date().toISOString();
-  this.stmt({type: "comment", text: text});
-}
-JsonRenderer.prototype.writeFooter = function() {
-  this.text("]");
-}
 JsonRenderer.prototype.rewriteUrl = function(url) {
   return url;
 }
@@ -193,19 +193,20 @@ JsonRenderer.prototype.shortUrl = function(url) {
 
 JsonRenderer.prototype.startUrl = function(item) {
   var url = this.pyrepr(this.rewriteUrl(item.url));
-  this.stmt({type: "viewport", width: item.width, height: item.height});
-  this.stmt({type: "start", url: url});
+  this.json.rendered_at = new Date();
+  this.json.viewport = {width: item.width, height: item.height};
+  this.push_event({start: url});
 }
 JsonRenderer.prototype.openUrl = function(item) {
   var url = this.pyrepr(this.rewriteUrl(item.url));
   var history = this.history;
   // if the user apparently hit the back button, render the event as such
   if (url == history[history.length - 2]) {
-    this.stmt({type: "back"});
+    this.push_event({back: null});
     history.pop();
     history.pop();
   } else {
-    this.stmt({type: d[EventTypes.OpenUrl], url: url});
+    this.push_event({openurl: url});
   }
 }
 
@@ -265,15 +266,15 @@ JsonRenderer.prototype.getLinkXPath = function(item) {
 
 JsonRenderer.prototype.mousedrag = function(item) {
   if (this.with_xy) {
-    this.stmt({type: "mousedown", x: item.before.x, y: item.before.y});
-    this.stmt({type: "mousemove", x: item.x, y: item.y});
-    this.stmt({type: "mouseup", x: item.x, y: item.y});
+    this.push_event({mousedown: {x: item.before.x, y: item.before.y}});
+    this.push_event({mousemove: {x: item.x, y: item.y}});
+    this.push_event({mouseup: {x: item.x, y: item.y}});
   }
 }
 JsonRenderer.prototype.click = function(item) {
   var tag = item.info.tagName.toLowerCase();
   if (this.with_xy && !(tag == 'a' || tag == 'input' || tag == 'button')) {
-    this.stmt({type: "click", x: item.x, y: item.y});
+    this.push_event({click: {x: item.x, y: item.y}});
   } else {
     var selector;
     if (tag == 'a') {
@@ -289,7 +290,7 @@ JsonRenderer.prototype.click = function(item) {
     } else {
       selector = '"' + item.info.selector + '"';
     }
-    this.stmt({type: "click", selector: selector});
+    this.push_event({click: selector});
   }
 }
 
@@ -309,38 +310,38 @@ JsonRenderer.prototype.getFormSelector = function(item) {
 
 JsonRenderer.prototype.keypress = function(item) {
   var text = item.text.replace('\n','').replace('\r', '\\r');
-  this.stmt({type: "keypress", selector: this.getControl(item), text: text});
+  this.push_event({keypress: {selector: this.getControl(item), text: text}});
 }
 
 JsonRenderer.prototype.submit = function(item) {
   // the submit has been called somehow (user, or script)
   // so no need to trigger it.
-  this.stmt({type: "comment", text: "(submit form)"});
+  this.push_event({comment: "(submit form)"});
 }
 
 JsonRenderer.prototype.screenShot = function(item) {
   // wait 1 second is not the ideal solution, but will be enough most
   // part of time. For slow pages, an assert before capture will make
   // sure evrything is properly loaded before screenshot.
-  this.stmt({type: "screenshot", id: this.screen_id});
+  this.push_event({screenshot: this.screen_id});
   this.screen_id = this.screen_id + 1;
 }
 
 JsonRenderer.prototype.comment = function(item) {
   var text = item.text;
-  this.stmt({type: "comment", text: text});
+  this.push_event({comment: text});
   //this.stmt('    this.captureSelector("screenshot'+this.screen_id+'.png", "html");');
 }
 
 JsonRenderer.prototype.checkPageTitle = function(item) {
   var title = this.pyrepr(item.title, true);
-  this.stmt({type: "checktitle", title: title});
+  this.push_event({checktitle: title});
   //this.stmt('    test.assertTitle('+ title +');');
 }
 
 JsonRenderer.prototype.checkPageLocation = function(item) {
   var url = this.regexp_escape(item.url);
-  this.stmt({type: "checkpagelocation", url: url});
+  this.push_event({checkpagelocation: url});
   //this.stmt('    test.assertUrlMatch(/^'+ url +'$/);');
 }
 
@@ -387,7 +388,7 @@ JsonRenderer.prototype.checkHref = function(item) {
   } else {
     selector = item.info.selector+'[href='+ href +']';
   }
-  this.stmt({type: "checkhref", selector: selector});
+  this.push_event({checkhref: selector});
   //this.stmt('    test.assertExists('+selector+');');
 }
 
@@ -410,7 +411,7 @@ JsonRenderer.prototype.checkSelectValue = function(item) {
 }
 
 JsonRenderer.prototype.checkSelectOptions = function(item) {
-  this.stmt({type: "comment", text: "TODO: checkSelectOptions"});
+  this.push_event({comment: "TODO: checkSelectOptions"});
   //this.stmt('// TODO');
 }
 
@@ -420,7 +421,7 @@ JsonRenderer.prototype.checkImageSrc = function(item) {
 }
 
 JsonRenderer.prototype.waitAndTestSelector = function(selector) {
-  this.stmt({type: "waitandtestselector", selector: selector});
+  this.push_event({waitandtestselector: selector});
   //this.stmt('casper.waitForSelector(' + selector + ',');
   //this.stmt('    function success() {');
   //this.stmt('        test.assertExists(' + selector + ');')
