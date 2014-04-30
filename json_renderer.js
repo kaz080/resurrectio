@@ -149,7 +149,7 @@ JsonRenderer.prototype.render = function(with_xy) {
       } else {
         console.log("MouseDrag");
         item.before = last_down;
-        this[this.dispatch[etypes.MouseDrag]](item, 2, comma);
+        this[this.dispatch[etypes.MouseDrag]](item);
         last_down = null;
         forget_click = true;
         continue;
@@ -173,7 +173,7 @@ JsonRenderer.prototype.render = function(with_xy) {
     console.log(d[item.type]);
     if (this.dispatch[item.type]) {
       console.log("Dispatch");
-      this[this.dispatch[item.type]](item, 2, comma);
+      this[this.dispatch[item.type]](item);
     }
   }
 
