@@ -192,21 +192,22 @@ JsonRenderer.prototype.shortUrl = function(url) {
 }
 
 JsonRenderer.prototype.startUrl = function(item) {
-  var url = this.pyrepr(this.rewriteUrl(item.url));
   this.json.rendered_at = new Date();
   this.json.viewport = {width: item.width, height: item.height};
-  this.push_event({start: url});
+  this.push_event({start: item.url});
 }
 JsonRenderer.prototype.openUrl = function(item) {
   var url = this.pyrepr(this.rewriteUrl(item.url));
   var history = this.history;
   // if the user apparently hit the back button, render the event as such
+  console.log(url);
+  console.log(history[history.length - 2]);
   if (url == history[history.length - 2]) {
     this.push_event({back: null});
     history.pop();
     history.pop();
   } else {
-    this.push_event({openurl: url});
+    this.push_event({openurl: item.url});
   }
 }
 
@@ -330,19 +331,14 @@ JsonRenderer.prototype.screenShot = function(item) {
 JsonRenderer.prototype.comment = function(item) {
   var text = item.text;
   this.push_event({comment: text});
-  //this.stmt('    this.captureSelector("screenshot'+this.screen_id+'.png", "html");');
 }
 
 JsonRenderer.prototype.checkPageTitle = function(item) {
-  var title = this.pyrepr(item.title, true);
-  this.push_event({checktitle: title});
-  //this.stmt('    test.assertTitle('+ title +');');
+  this.push_event({checktitle: item.title});
 }
 
 JsonRenderer.prototype.checkPageLocation = function(item) {
-  var url = this.regexp_escape(item.url);
-  this.push_event({checkpagelocation: url});
-  //this.stmt('    test.assertUrlMatch(/^'+ url +'$/);');
+  this.push_event({checkpagelocation: item.url});
 }
 
 JsonRenderer.prototype.checkTextPresent = function(item) {
@@ -389,7 +385,6 @@ JsonRenderer.prototype.checkHref = function(item) {
     selector = item.info.selector+'[href='+ href +']';
   }
   this.push_event({checkhref: selector});
-  //this.stmt('    test.assertExists('+selector+');');
 }
 
 JsonRenderer.prototype.checkEnabled = function(item) {
