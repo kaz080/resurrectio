@@ -112,6 +112,27 @@ JsonRenderer.prototype.dispatch = d;
 
 var cc = EventTypes;
 
+JsonRenderer.ElementInfo = function(item) {
+  // css is css selector estimated by
+  // TestRecorder.ElementInfo.getCleanCSSSelector()
+  var info = item.info;
+  this.css = info.selector;
+  // Those properties are optional
+  this.tag = info.tagName;
+  if (info.id)
+    this.id = info.id;
+  if (info.type)
+    this.type = info.type;
+  if (info.value)
+    this.value = info.value;
+  if (info.name)
+    this.name = info.name;
+  if (info.href)
+    this.href = info.href;
+  if (info.options.length)
+    this.options = info.options;
+}
+
 JsonRenderer.prototype.render = function(with_xy) {
   this.with_xy = with_xy;
   var etypes = EventTypes;
@@ -122,12 +143,16 @@ JsonRenderer.prototype.render = function(with_xy) {
 
   for (var i=0; i < this.items.length; i++) {
     var item = this.items[i];
+
+    //var info = new JsonRenderer.ElementInfo(item);
+    //console.log(JSON.stringify(info, 0, 2));
+
     if (item.type == etypes.Comment)
       this.space();
 
-    if (i==0) {
-      if (item.type!=etypes.OpenUrl) {
-        this.push_event({error: "the recorded sequence does not start with a url openning."});
+    if (i == 0) {
+      if (item.type != etypes.OpenUrl) {
+        this.push_event({error: "the recorded sequence does not start with openning URL."});
       } else {
         this.startUrl(item);
         continue;
@@ -135,12 +160,13 @@ JsonRenderer.prototype.render = function(with_xy) {
     }
 
     // remember last MouseDown to identify drag
-    if (item.type==etypes.MouseDown) {
+    if (item.type == etypes.MouseDown) {
       console.log("MouseDown");
       last_down = this.items[i];
       continue;
     }
-    if (item.type==etypes.MouseUp && last_down) {
+
+    if (item.type == etypes.MouseUp && last_down) {
       console.log("MouseUp");
       if (last_down.x == item.x && last_down.y == item.y) {
         console.log("Not moved. forget_click = false");
@@ -155,7 +181,7 @@ JsonRenderer.prototype.render = function(with_xy) {
         continue;
       }
     }
-    if (item.type==etypes.Click && forget_click) {
+    if (item.type == etypes.Click && forget_click) {
       console.log("Click but forget");
       forget_click = false;
       continue;
@@ -196,6 +222,7 @@ JsonRenderer.prototype.startUrl = function(item) {
   this.json.viewport = {width: item.width, height: item.height};
   this.push_event({start: item.url});
 }
+
 JsonRenderer.prototype.openUrl = function(item) {
   var url = this.pyrepr(this.rewriteUrl(item.url));
   var history = this.history;
@@ -227,11 +254,11 @@ JsonRenderer.prototype.getControl = function(item) {
   if ((type == "submit" || type == "button") && item.info.value)
     selector = tag+'[type='+type+'][value='+this.pyrepr(this.normalizeWhitespace(item.info.value))+']';
   else if (item.info.name)
-  selector = tag+'[name='+this.pyrepr(item.info.name)+']';
+    selector = tag+'[name='+this.pyrepr(item.info.name)+']';
   else if (item.info.id)
-  selector = tag+'#'+item.info.id;
+   selector = tag+'#'+item.info.id;
   else
-  selector = item.info.selector;
+    selector = item.info.selector;
 
   return selector;
 }
@@ -244,7 +271,7 @@ JsonRenderer.prototype.getControlXPath = function(item) {
   else if (item.info.name)
     way = '@name=' + this.pyrepr(item.info.name);
   else if (item.info.id)
-  way = '@id=' + this.pyrepr(item.info.id);
+    way = '@id=' + this.pyrepr(item.info.id);
   else
     way = 'TODO';
 
@@ -272,26 +299,32 @@ JsonRenderer.prototype.mousedrag = function(item) {
     this.push_event({mouseup: {x: item.x, y: item.y}});
   }
 }
+
 JsonRenderer.prototype.click = function(item) {
   var tag = item.info.tagName.toLowerCase();
   if (this.with_xy && !(tag == 'a' || tag == 'input' || tag == 'button')) {
     this.push_event({click: {x: item.x, y: item.y}});
   } else {
-    var selector;
+    var info = new JsonRenderer.ElementInfo(item);
+    //var selector;
     if (tag == 'a') {
       var xpath_selector = this.getLinkXPath(item);
       if (xpath_selector) {
-        selector = 'x("//a['+xpath_selector+']")';
+        //selector = 'x("//a['+xpath_selector+']")';
+        info.xpath = xpath_selector;
       } else {
-        selector = item.info.selector;
+        //selector = item.info.selector;
       }
     } else if (tag == 'input' || tag == 'button') {
-      selector = this.getFormSelector(item) + this.getControl(item);
-      selector = '"' + selector + '"';
+      var selector = this.getFormSelector(item) + this.getControl(item);
+      console.log(info.css + " -> " + selector);
+      info.css = selector;
+      //selector = this.getFormSelector(item) + this.getControl(item);
+      //selector = '"' + selector + '"';
     } else {
-      selector = '"' + item.info.selector + '"';
+      //selector = '"' + item.info.selector + '"';
     }
-    this.push_event({click: selector});
+    this.push_event({click: info});
   }
 }
 
@@ -311,7 +344,7 @@ JsonRenderer.prototype.getFormSelector = function(item) {
 
 JsonRenderer.prototype.keypress = function(item) {
   var text = item.text.replace('\n','').replace('\r', '\\r');
-  this.push_event({keypress: {selector: this.getControl(item), text: text}});
+  this.push_event({keypress: {css: this.getControl(item), text: text}});
 }
 
 JsonRenderer.prototype.submit = function(item) {
@@ -342,67 +375,86 @@ JsonRenderer.prototype.checkPageLocation = function(item) {
 }
 
 JsonRenderer.prototype.checkTextPresent = function(item) {
-  var selector = 'x("//*[contains(text(), '+this.pyrepr(item.text, true)+')]")';
-  this.waitAndTestSelector(selector);
+  //var selector = 'x("//*[contains(text(), '+this.pyrepr(item.text, true)+')]")';
+  var info = new JsonRenderer.ElementInfo(item);
+  info.xpath = '//*[contains(text(), '+this.pyrepr(item.text, true)+')]';
+  this.waitAndTestSelector(info);
 }
 
 JsonRenderer.prototype.checkValue = function(item) {
   var type = item.info.type;
   var way = this.getControlXPath(item);
-  var selector = '';
+  var info = new JsonRenderer.ElementInfo(item);
   if (type == 'checkbox' || type == 'radio') {
     var selected;
     if (item.info.checked)
       selected = '@checked'
     else
       selected = 'not(@checked)'
-    selector = 'x("//input[' + way + ' and ' +selected+ ']")';
+    info.xpath = '//input[' + way + ' and ' +selected+ ']';
+    //selector = 'x("//input[' + way + ' and ' +selected+ ']")';
   }
   else {
     var value = this.pyrepr(item.info.value)
     var tag = item.info.tagName.toLowerCase();
-    selector = 'x("//'+tag+'[' + way + ' and @value='+value+']")';
+    info.xpath = '//'+tag+'[' + way + ' and @value='+value+']';
+    //selector = 'x("//'+tag+'[' + way + ' and @value='+value+']")';
   }
-  this.waitAndTestSelector(selector);
+  this.waitAndTestSelector(info);
 }
 
 JsonRenderer.prototype.checkText = function(item) {
-  var selector = '';
+  var info = new JsonRenderer.ElementInfo(item);
+  var info = new JsonRenderer.ElementInfo(item);
   if ((item.info.type == "submit") || (item.info.type == "button")) {
-      selector = 'x("//input[@value='+this.pyrepr(item.text, true)+']")';
+    info.xpath = '//input[@value='+this.pyrepr(item.text, true)+']';
+    //selector = 'x("//input[@value='+this.pyrepr(item.text, true)+']")';
   } else {
-      selector = 'x("//*[normalize-space(text())='+this.pyrepr(item.text, true)+']")';
+    info.xpath = '//*[normalize-space(text())='+this.pyrepr(item.text, true)+']';
+    //selector = 'x("//*[normalize-space(text())='+this.pyrepr(item.text, true)+']")';
   }
-  this.waitAndTestSelector(selector);
+  this.waitAndTestSelector(info);
 }
 
 JsonRenderer.prototype.checkHref = function(item) {
   var href = this.pyrepr(this.shortUrl(item.info.href));
-  var selector = this.getLinkXPath(item);
+  var link_xpath = this.getLinkXPath(item);
+  var info = new JsonRenderer.ElementInfo(item);
   if (selector) {
-    selector = 'x("//a['+xpath_selector+' and @href='+ href +']")';
+    info.xpath = '//a['+link_xpath+' and @href='+ href +']';
+    //selector = 'x("//a['+xpath_selector+' and @href='+ href +']")';
   } else {
-    selector = item.info.selector+'[href='+ href +']';
+    info.xpath = item.info.selector + '[href='+ href +']';
+    //selector = item.info.selector+'[href='+ href +']';
   }
-  this.push_event({checkhref: selector});
+  this.push_event({checkhref: info});
 }
 
 JsonRenderer.prototype.checkEnabled = function(item) {
-    var way = this.getControlXPath(item);
-    var tag = item.info.tagName.toLowerCase();
-    this.waitAndTestSelector('x("//'+tag+'[' + way + ' and not(@disabled)]")');
+  var way = this.getControlXPath(item);
+  var tag = item.info.tagName.toLowerCase();
+  var info = new JsonRenderer.ElementInfo(item);
+  info.xpath = '//'+tag+'[' + way + ' and not(@disabled)]';
+  this.waitAndTestSelector(info);
+  //this.waitAndTestSelector('x("//'+tag+'[' + way + ' and not(@disabled)]")');
 }
 
 JsonRenderer.prototype.checkDisabled = function(item) {
   var way = this.getControlXPath(item);
   var tag = item.info.tagName.toLowerCase();
-  this.waitAndTestSelector('x("//'+tag+'[' + way + ' and @disabled]")');
+  var info = new JsonRenderer.ElementInfo(item);
+  info.xpath = '//'+tag+'[' + way + ' and @disabled]';
+  this.waitAndTestSelector(info);
+  //this.waitAndTestSelector('x("//'+tag+'[' + way + ' and @disabled]")');
 }
 
 JsonRenderer.prototype.checkSelectValue = function(item) {
   var value = this.pyrepr(item.info.value);
   var way = this.getControlXPath(item);
-  this.waitAndTestSelector('x("//select[' + way + ']/options[@selected and @value='+value+']")');
+  var info = new JsonRenderer.ElementInfo(item);
+  info.xpath = '//select[' + way + ']/options[@selected and @value='+value+']';
+  this.waitAndTestSelector(info);
+  //this.waitAndTestSelector('x("//select[' + way + ']/options[@selected and @value='+value+']")');
 }
 
 JsonRenderer.prototype.checkSelectOptions = function(item) {
@@ -412,11 +464,14 @@ JsonRenderer.prototype.checkSelectOptions = function(item) {
 
 JsonRenderer.prototype.checkImageSrc = function(item) {
   var src = this.pyrepr(this.shortUrl(item.info.src));
-  this.waitAndTestSelector('x("//img[@src=' + src + ']")');
+  var info = new JsonRenderer.ElementInfo(item);
+  info.xpath = '//img[@src=' + src + ']';
+  this.waitAndTestSelector(info);
+  //this.waitAndTestSelector('x("//img[@src=' + src + ']")');
 }
 
 JsonRenderer.prototype.waitAndTestSelector = function(selector) {
-  this.push_event({waitandtestselector: selector});
+  this.push_event({waitandtest: selector});
   //this.stmt('casper.waitForSelector(' + selector + ',');
   //this.stmt('    function success() {');
   //this.stmt('        test.assertExists(' + selector + ');')
