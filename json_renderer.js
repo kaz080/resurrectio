@@ -129,6 +129,8 @@ JsonRenderer.ElementInfo = function(item) {
     this.name = info.name;
   if (info.href)
     this.href = info.href;
+  if (info.src)
+    this.src = info.src;
   if (info.options.length)
     this.options = info.options;
 }
@@ -195,10 +197,9 @@ JsonRenderer.prototype.render = function(with_xy) {
       continue;
     }
 
-    console.log(item.type);
-    console.log(d[item.type]);
+    console.log(item.type + ": " + d[item.type]);
     if (this.dispatch[item.type]) {
-      console.log("Dispatch");
+      console.log("Dispatch: " + d[item.type]);
       this[this.dispatch[item.type]](item);
     }
   }
@@ -343,8 +344,12 @@ JsonRenderer.prototype.getFormSelector = function(item) {
 }
 
 JsonRenderer.prototype.keypress = function(item) {
-  var text = item.text.replace('\n','').replace('\r', '\\r');
-  this.push_event({keypress: {css: this.getControl(item), text: text}});
+  var info = new JsonRenderer.ElementInfo(item);
+  //var text = item.text.replace('\n','').replace('\r', '\\r');
+  var control_css = this.getControl(item);
+  console.log(info.css + " -> " + control_css);
+  info.css = control_css;
+  this.push_event({keypress: info});
 }
 
 JsonRenderer.prototype.submit = function(item) {
@@ -367,7 +372,7 @@ JsonRenderer.prototype.comment = function(item) {
 }
 
 JsonRenderer.prototype.checkPageTitle = function(item) {
-  this.push_event({checktitle: item.title});
+  this.push_event({checkpagetitle: item.title});
 }
 
 JsonRenderer.prototype.checkPageLocation = function(item) {
@@ -377,8 +382,9 @@ JsonRenderer.prototype.checkPageLocation = function(item) {
 JsonRenderer.prototype.checkTextPresent = function(item) {
   //var selector = 'x("//*[contains(text(), '+this.pyrepr(item.text, true)+')]")';
   var info = new JsonRenderer.ElementInfo(item);
+  info.text = item.text;
   info.xpath = '//*[contains(text(), '+this.pyrepr(item.text, true)+')]';
-  this.waitAndTestSelector(info);
+  this.push_event({checktextpresent: info});
 }
 
 JsonRenderer.prototype.checkValue = function(item) {
@@ -400,12 +406,12 @@ JsonRenderer.prototype.checkValue = function(item) {
     info.xpath = '//'+tag+'[' + way + ' and @value='+value+']';
     //selector = 'x("//'+tag+'[' + way + ' and @value='+value+']")';
   }
-  this.waitAndTestSelector(info);
+  this.push_event({checkvalue: info});
 }
 
 JsonRenderer.prototype.checkText = function(item) {
   var info = new JsonRenderer.ElementInfo(item);
-  var info = new JsonRenderer.ElementInfo(item);
+  info.text = item.text;
   if ((item.info.type == "submit") || (item.info.type == "button")) {
     info.xpath = '//input[@value='+this.pyrepr(item.text, true)+']';
     //selector = 'x("//input[@value='+this.pyrepr(item.text, true)+']")';
@@ -413,7 +419,7 @@ JsonRenderer.prototype.checkText = function(item) {
     info.xpath = '//*[normalize-space(text())='+this.pyrepr(item.text, true)+']';
     //selector = 'x("//*[normalize-space(text())='+this.pyrepr(item.text, true)+']")';
   }
-  this.waitAndTestSelector(info);
+  this.push_event({checktext: info});
 }
 
 JsonRenderer.prototype.checkHref = function(item) {
@@ -435,7 +441,7 @@ JsonRenderer.prototype.checkEnabled = function(item) {
   var tag = item.info.tagName.toLowerCase();
   var info = new JsonRenderer.ElementInfo(item);
   info.xpath = '//'+tag+'[' + way + ' and not(@disabled)]';
-  this.waitAndTestSelector(info);
+  this.push_event({checkenabled: info});
   //this.waitAndTestSelector('x("//'+tag+'[' + way + ' and not(@disabled)]")');
 }
 
@@ -444,7 +450,7 @@ JsonRenderer.prototype.checkDisabled = function(item) {
   var tag = item.info.tagName.toLowerCase();
   var info = new JsonRenderer.ElementInfo(item);
   info.xpath = '//'+tag+'[' + way + ' and @disabled]';
-  this.waitAndTestSelector(info);
+  this.push_event({checkdisabled: info});
   //this.waitAndTestSelector('x("//'+tag+'[' + way + ' and @disabled]")');
 }
 
@@ -453,7 +459,7 @@ JsonRenderer.prototype.checkSelectValue = function(item) {
   var way = this.getControlXPath(item);
   var info = new JsonRenderer.ElementInfo(item);
   info.xpath = '//select[' + way + ']/options[@selected and @value='+value+']';
-  this.waitAndTestSelector(info);
+  this.push_event({checkselectvalue: info});
   //this.waitAndTestSelector('x("//select[' + way + ']/options[@selected and @value='+value+']")');
 }
 
@@ -466,7 +472,7 @@ JsonRenderer.prototype.checkImageSrc = function(item) {
   var src = this.pyrepr(this.shortUrl(item.info.src));
   var info = new JsonRenderer.ElementInfo(item);
   info.xpath = '//img[@src=' + src + ']';
-  this.waitAndTestSelector(info);
+  this.push_event({checkimagesrc: info});
   //this.waitAndTestSelector('x("//img[@src=' + src + ']")');
 }
 
