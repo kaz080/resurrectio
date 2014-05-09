@@ -116,7 +116,7 @@ JsonRenderer.ElementInfo = function(item) {
   // css is css selector estimated by
   // TestRecorder.ElementInfo.getCleanCSSSelector()
   var info = item.info;
-  this.css = info.selector;
+  this.selector = info.selector;
   // Those properties are optional
   this.tag = info.tagName;
   if (info.id)
@@ -318,8 +318,8 @@ JsonRenderer.prototype.click = function(item) {
       }
     } else if (tag == 'input' || tag == 'button') {
       var selector = this.getFormSelector(item) + this.getControl(item);
-      console.log(info.css + " -> " + selector);
-      info.css = selector;
+      console.log(info.selector + " -> " + selector);
+      info.selector = selector;
       //selector = this.getFormSelector(item) + this.getControl(item);
       //selector = '"' + selector + '"';
     } else {
@@ -347,8 +347,8 @@ JsonRenderer.prototype.keypress = function(item) {
   var info = new JsonRenderer.ElementInfo(item);
   //var text = item.text.replace('\n','').replace('\r', '\\r');
   var control_css = this.getControl(item);
-  console.log(info.css + " -> " + control_css);
-  info.css = control_css;
+  console.log(info.selector + " -> " + control_css);
+  info.selector = control_css;
   this.push_event({keypress: info});
 }
 
